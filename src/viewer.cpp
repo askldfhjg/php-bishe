@@ -29,12 +29,11 @@
 #include <winsock2.h>
 #pragma  comment(lib, "Ws2_32.lib")
 
-
 ZEND_DECLARE_MODULE_GLOBALS(viewer)
-
-
+//static PHP_GINIT_FUNCTION(viewer);
 /* True global resources - no need for thread safety here */
 static int le_viewer;
+#define le_viewer_name php_sockets_le_socket_name
 
 /* {{{ viewer_functions[]
  *
@@ -44,6 +43,7 @@ const zend_function_entry viewer_functions[] = {
 	PHP_FE(confirm_viewer_compiled,	NULL)		/* For testing, remove later. */
 	PHP_FE(certsocket_add,	NULL)
 	PHP_FE(certsocket_send,	NULL)
+	PHP_FE(certsocket_init,	NULL)
 	{NULL, NULL, NULL}	/* Must be the last line in viewer_functions[] */
 };
 /* }}} */
@@ -84,21 +84,32 @@ PHP_INI_END()
 
 /* {{{ php_viewer_init_globals
  */
- /*Uncomment this function if you have INI entries */
+ /*Uncomment this function if you have INI entries 
 static void php_viewer_init_globals(zend_viewer_globals *viewer_globals)
 {
 	viewer_globals->string = NULL;
 }
 
 /* }}} */
-
+static PHP_GINIT_FUNCTION(viewer)
+{
+	viewer_globals->len=0;
+}
 /* {{{ PHP_MINIT_FUNCTION
  */
+ static void php_destroy_viewer(zend_rsrc_list_entry *rsrc TSRMLS_DC) /* {{{ */
+{
+	php_socket *ch = (php_socket *) rsrc->ptr;
+	efree(ch);
+}
+
+
 PHP_MINIT_FUNCTION(viewer)
 {
 	/* If you have INI entries, uncomment these lines 
 	REGISTER_INI_ENTRIES();
 	*/
+	le_viewer = zend_register_list_destructors_ex(php_destroy_viewer, NULL, le_viewer_name , module_number);
 	return SUCCESS;
 }
 /* }}} */
@@ -154,6 +165,8 @@ PHP_MINFO_FUNCTION(viewer)
 /* Every user-visible function in PHP should document itself in the source */
 /* {{{ proto string confirm_viewer_compiled(string arg)
    Return a string to confirm that the module is compiled in */
+
+
 PHP_FUNCTION(confirm_viewer_compiled)
 {
 	char *arg = NULL;
@@ -168,6 +181,10 @@ PHP_FUNCTION(confirm_viewer_compiled)
 	RETURN_STRINGL(strg, len, 0);
 }
 
+static int test(char *ch, zval *return_value TSRMLS_DC) /* {{{ */
+{
+	ch=estrdup("ss");
+}
 /* Sets addr by hostname, or by ip in string form (AF_INET)  */
 static int php_set_inet_addr(struct sockaddr_in *sin, char *string, php_socket *php_sock TSRMLS_DC) /* {{{ */
 {
@@ -185,26 +202,56 @@ static int php_set_inet_addr(struct sockaddr_in *sin, char *string, php_socket *
 }
 /* }}} */
 
-/*int encode()
-{
-	Value var;
-	var["test"]="fuck";
-	FastWriter writer;
-	//return writer.write(var);
-	return 1;
-}  */
 
 PHP_FUNCTION(certsocket_send)
 {	
+	zval *arg= NULL;
+	php_socket	*php_sock;
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "r", &arg) == FAILURE) {
+		return;
+	}
+	ZEND_FETCH_RESOURCE(php_sock, php_socket *, &arg, -1, le_viewer_name , le_viewer);
+	if (php_sock == NULL) 
+	{
+		RETURN_FALSE;
+    }
+	send(php_sock->bsd_socket,"EOF", strlen("EOF"), 0);
+}
+
+PHP_FUNCTION(certsocket_add)
+{
+	zval *arg= NULL;
+	php_socket	*php_sock;
+	char *key=NULL;
+	int key_len,val_len;
+	char *val=NULL;
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "rss", &arg,&key, &key_len, &val , &val_len) == FAILURE) {
+		return;
+	}
+
+	ZEND_FETCH_RESOURCE(php_sock, php_socket *, &arg, -1, le_viewer_name , le_viewer);
+	if (php_sock == NULL) 
+	{
+		RETURN_FALSE;
+    }
+	send(php_sock->bsd_socket,key, key_len, 0);
+	send(php_sock->bsd_socket,":", strlen(":"), 0);
+	send(php_sock->bsd_socket,val, val_len, 0);
+	send(php_sock->bsd_socket,";", strlen(";"), 0);
+}
+
+PHP_FUNCTION(certsocket_init)
+{
 	char *addr = NULL;
-	char *str = NULL;
-	int addr_len ,str_len;
+	char *url = NULL;
+	char *ip = NULL;
+	int addr_len ,url_len,ip_len;
 	struct sockaddr_in	sin;
 	long port;
 	int	retval;
 	php_socket	*php_sock = (php_socket*)emalloc(sizeof(php_socket));
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "ss|l", &addr, &addr_len, &str , &str_len ,&port) == FAILURE) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "sss|l", &url , &url_len , &ip, &ip_len , &addr, &addr_len, &port ) == FAILURE) {
 		efree(php_sock);
 		return;
 	}
@@ -220,53 +267,11 @@ PHP_FUNCTION(certsocket_send)
 		RETURN_FALSE;
 	}
 	retval = connect(php_sock->bsd_socket, (struct sockaddr *)&sin, sizeof(struct sockaddr_in));
-	retval = send(php_sock->bsd_socket, str, str_len, 0);
-	closesocket(php_sock->bsd_socket);
-	efree(php_sock);
-	RETURN_LONG(str_len);
-}
-
-PHP_FUNCTION(certsocket_add)
-{
-	char *key=NULL;
-	int key_len,val_len;
-	char *val=NULL;
-	char *result;
-	int result_length;
-	struct sockaddr_in	sin;
-	long port=9527;
-	int	retval;
-	php_socket	*php_sock = (php_socket*)emalloc(sizeof(php_socket));
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "ss", &key, &key_len, &val , &val_len) == FAILURE) {
-		return;
-	}
-	result_length=key_len+val_len+10+1;
-	result = (char *) emalloc(result_length);
-	VIEWER_G(string) = (char *) emalloc(7);
-	//memcpy(result, VIEWER_G(string), strlen(VIEWER_G(string)));
-	strcat(VIEWER_G(string),"dfdf");
-	/*strcat(result,key);
-	strcat(result,"\":\"");
-	strcat(result,val);
-	strcat(result,"\"");
-	erealloc(VIEWER_G(string),result_length);
-	VIEWER_G(string)=estrdup(result); 
-	//RETURN_TRUE;  */
-	php_sock->bsd_socket = socket(AF_INET, SOCK_STREAM, 6);
-	php_sock->type = AF_INET;
-	php_sock->error = 0;
-	php_sock->blocking = 1;
-
-	sin.sin_family = AF_INET;
-	sin.sin_port   = htons((unsigned short int)port);
-	if (! php_set_inet_addr(&sin,"127.0.0.1", php_sock TSRMLS_CC)) {
-		RETURN_FALSE;
-	}
-	retval = connect(php_sock->bsd_socket, (struct sockaddr *)&sin, sizeof(struct sockaddr_in));
-	retval = send(php_sock->bsd_socket, VIEWER_G(string), strlen(VIEWER_G(string)), 0);
-	closesocket(php_sock->bsd_socket);
-	efree(php_sock);
-	RETURN_TRUE;  
+	send(php_sock->bsd_socket,url, url_len, 0);
+	send(php_sock->bsd_socket,":", strlen(":"), 0);
+	send(php_sock->bsd_socket,ip, ip_len, 0);
+	send(php_sock->bsd_socket,";", strlen(";"), 0);
+	ZEND_REGISTER_RESOURCE(return_value, php_sock, le_viewer); 
 }
 
 /* }}} */

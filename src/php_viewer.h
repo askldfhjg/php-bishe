@@ -44,10 +44,11 @@ PHP_RINIT_FUNCTION(viewer);
 PHP_RSHUTDOWN_FUNCTION(viewer);
 PHP_MINFO_FUNCTION(viewer);
 
+
 PHP_FUNCTION(confirm_viewer_compiled);	/* For testing, remove later. */
 PHP_FUNCTION(certsocket_add);
 PHP_FUNCTION(certsocket_send);
-
+PHP_FUNCTION(certsocket_init);
 
 
 typedef struct {
@@ -56,12 +57,15 @@ typedef struct {
 	int		error;
 	int		blocking;
 } php_socket;
+
+#define php_sockets_le_socket_name "Viewer"
 /* 
   	Declare any global variables you may need between the BEGIN
 	and END macros here:     
 */
+
 ZEND_BEGIN_MODULE_GLOBALS(viewer)
-	char *string;
+	int len;
 ZEND_END_MODULE_GLOBALS(viewer)
 
 
