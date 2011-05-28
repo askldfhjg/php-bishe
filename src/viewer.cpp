@@ -27,6 +27,8 @@
 #include "ext/standard/info.h"
 #include "php_viewer.h"
 #include <winsock2.h>
+
+
 #pragma  comment(lib, "Ws2_32.lib")
 
 ZEND_DECLARE_MODULE_GLOBALS(viewer)
@@ -181,10 +183,6 @@ PHP_FUNCTION(confirm_viewer_compiled)
 	RETURN_STRINGL(strg, len, 0);
 }
 
-static int test(char *ch, zval *return_value TSRMLS_DC) /* {{{ */
-{
-	ch=estrdup("ss");
-}
 /* Sets addr by hostname, or by ip in string form (AF_INET)  */
 static int php_set_inet_addr(struct sockaddr_in *sin, char *string, php_socket *php_sock TSRMLS_DC) /* {{{ */
 {
@@ -223,8 +221,15 @@ PHP_FUNCTION(certsocket_add)
 	zval *arg= NULL;
 	php_socket	*php_sock;
 	char *key=NULL;
-	int key_len,val_len;
+	int i,key_len,val_len,retval;
 	char *val=NULL;
+	//char *temp = (char *)malloc(1);
+	//char *ret = (char *)malloc(40);
+	//char *ptr;
+	//SHA1Context sha;
+ //   uint8_t Message_Digest[20];
+	//ptr=ret;
+
 	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "rss", &arg,&key, &key_len, &val , &val_len) == FAILURE) {
 		return;
 	}
@@ -234,10 +239,32 @@ PHP_FUNCTION(certsocket_add)
 	{
 		RETURN_FALSE;
     }
+
+ /*   SHA1Reset(&sha);
+	SHA1Input(&sha,(const unsigned char *) key,key_len);
+    SHA1Result(&sha, Message_Digest);
+	for(i = 0; i < 20 ; ++i)
+    {
+        temp++;
+		itoa(Message_Digest[i],temp,16);
+		retval=send(php_sock->bsd_socket,temp, strlen(temp), 0);
+		if(retval==0) RETURN_FALSE;
+		memcpy(ptr, temp, strlen(temp));
+		ptr += strlen(temp);
+		str[i] = temp;
+		ret = strdup(temp);
+		strcpy(ret ,temp );
+		printf("%02X ", Message_Digest[i]);
+    }*/
+	//send(php_sock->bsd_socket,temp, key_len, 0);
 	send(php_sock->bsd_socket,key, key_len, 0);
 	send(php_sock->bsd_socket,":", strlen(":"), 0);
 	send(php_sock->bsd_socket,val, val_len, 0);
 	send(php_sock->bsd_socket,";", strlen(";"), 0);
+	//efree(temp);
+	//efree(ret);
+	//efree(ptr);
+	RETURN_LONG(key_len); 
 }
 
 PHP_FUNCTION(certsocket_init)

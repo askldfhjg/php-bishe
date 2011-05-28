@@ -26,6 +26,10 @@ extern zend_module_entry viewer_module_entry;
 
 #ifdef PHP_WIN32
 #include <winsock.h>
+#include "stdint.h"
+#include <stdio.h>
+#include <string.h>
+#include "sha1.h"
 #define PHP_VIEWER_API __declspec(dllexport)
 typedef SOCKET PHP_SOCKET;
 #elif defined(__GNUC__) && __GNUC__ >= 4
